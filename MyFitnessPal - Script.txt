@@ -10,7 +10,7 @@ function MyFitnessPalImport() {
     var startingdate = '2018-03-13'               // Define starting date of data export (YYYY-MM-DD)
     
     var foldername = 'Quantified Self';           // Google drive folder where data will be saved
-    var spreadsheetname = 'MyFitnessPal Data';  // Name of Google sheet file where data will be saved
+    var spreadsheetname = 'MyFitnessPal Data';    // Name of Google sheet file where data will be saved
 
     /////////////////////////////////////////////////////////////////////
 
