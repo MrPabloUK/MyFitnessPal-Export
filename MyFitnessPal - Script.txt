@@ -1,0 +1,255 @@
+function MyFitnessPalImport() {
+    
+    //////////////////////////////////////////////////////////////////////
+    /////// Enter login details, plus define start date, etc. ////////////
+    //////////////////////////////////////////////////////////////////////
+
+    var username = 'USERNAME'                     // Enter username used to login, not the full email. For example JoeBloggs, not JoeBloggs@gmail.com 
+    var password = 'PASSWORD'                     // Enter password
+
+    var startingdate = '2018-03-13'               // Define starting date of data export (YYYY-MM-DD)
+    
+    var foldername = 'Quantified Self';           // Google drive folder where data will be saved
+    var spreadsheetname = 'MyFitnessPal Data';  // Name of Google sheet file where data will be saved
+
+    /////////////////////////////////////////////////////////////////////
+
+    // Define data endpoints for querying later /////////////////////////
+
+    var enddate = new Date();
+
+    var year = +startingdate.substring(0, 4)
+    var month = +startingdate.substring(5, 7)
+    var day = +startingdate.substring(9, 11)
+
+        startdate = new Date(year, month - 1, day - 1)
+  
+  
+    var ndays = (Date.UTC(enddate.getFullYear(), enddate.getMonth(), enddate.getDate()) -
+        Date.UTC(startdate.getFullYear(), startdate.getMonth(), startdate.getDate())) / 86400000;
+  
+    
+  
+    // Define the urls needed to login and query data ///////////////////
+
+    var loginurl = 'https://www.myfitnesspal.com/account/login';
+  
+    var options = {
+      'method': 'post',
+      'testcookie': 1,
+      'followRedirects': false,
+      'payload': {
+        'utf8': '✓',
+        'username': username,
+        'password': password,
+        'remember_me': 1
+      },
+    };
+
+    var queryurl = ['https://www.myfitnesspal.com/reports/results/nutrition/Calories/' + ndays + '.json?report_name=Calories',
+        'http://www.myfitnesspal.com/reports/results/fitness/Calories Burned/' + ndays + '.json?report_name=Calories Burned',
+        'http://www.myfitnesspal.com/reports/results/nutrition/Carbs/' + ndays + '.json?report_name=Carbs',
+        'http://www.myfitnesspal.com/reports/results/nutrition/Fat/' + ndays + '.json?report_name=Fat',
+        'http://www.myfitnesspal.com/reports/results/nutrition/Protein/' + ndays + '.json?report_name=Protein',
+        'http://www.myfitnesspal.com/reports/results/nutrition/Sodium/' + ndays + '.json?report_name=Sodium',
+        'http://www.myfitnesspal.com/reports/results/nutrition/Fiber/' + ndays + '.json?report_name=Fiber',
+        'http://www.myfitnesspal.com/reports/results/nutrition/Sugar/' + ndays + '.json?report_name=Sugar',
+    ];
+
+  
+    // Define google sheet worksheet name(s) and data headers ///////////
+    
+    var sheet = ['Gross Calories',
+        'Exercise Calories',
+        'Carbs',
+        'Fat',
+        'Protein',
+        'Sodium',
+        'Fibre',
+        'Sugar',
+    ];
+
+    var dataheaders = [
+        [['Date', 'Gross Calories']],
+        [['Date', 'Exercise Calories']],
+        [['Date', 'Carbs']],
+        [['Date', 'Fat']],
+        [['Date', 'Protein']],
+        [['Date', 'Sodium']],
+        [['Date', 'Fibre']],
+        [['Date', 'Sugar']]
+    ];
+
+    var querycount = Object.keys(queryurl).length;
+
+    ///////// Begin login process ///////////////////////////////////////
+
+    var response = UrlFetchApp.fetch(loginurl, options);
+
+    if (response.getResponseCode() == 200) {
+        // Incorrect user/pass combo
+    } else if (response.getResponseCode() == 302) {
+        // Logged-in
+        var headers = response.getAllHeaders();
+        if (typeof headers['Set-Cookie'] !== 'undefined') {
+            // Make sure that we are working with an array of cookies
+            var cookies = typeof headers['Set-Cookie'] == 'string' ? [headers['Set-Cookie']] : headers['Set-Cookie'];
+            for (var i = 0; i < cookies.length; i++) {
+                // We only need the cookie's value - it might have path, expiry time, etc here
+                cookies[i] = cookies[i].split(';')[0];
+            };
+
+            //Successful login, so start to query data
+          
+            var googlesheet = Find_or_create_target_spreadsheet(spreadsheetname,foldername,sheet);   
+            var opensheet = SpreadsheetApp.openById(googlesheet);
+
+            for (var q = 0; q < querycount; q++) {
+
+                var targetsheet = opensheet.getSheetByName(sheet[q]);
+                if (!targetsheet) {
+                    opensheet.insertSheet(sheet[q]);
+                };
+
+                var targetsheet = opensheet.getSheetByName(sheet[q]);
+
+                options = {
+                    'method': 'get',
+                    // Set the cookies so that we appear logged-in
+                    'headers': {
+                        'Cookie': cookies.join(';')
+                    }
+                }
+
+                var resp = UrlFetchApp.fetch(queryurl[q], options);
+                var json = resp.getContentText();
+                //  Parse json data
+                var respdata = JSON.parse(json);
+                var actualrespdata = respdata.data
+                var jsonlength = Object.keys(actualrespdata).length;
+                if (jsonlength == 0) {
+                    Logger.log('No data');
+                    return;
+                }
+
+                var dataarray = [];
+
+                for (var i = 0; i < jsonlength; i++) {
+                    var item = [actualrespdata[i].date,
+                        actualrespdata[i].total
+                    ];
+                    dataarray.push(item);
+                }
+
+
+                targetsheet.clear()
+                targetsheet.getRange(1, 1, 1, dataheaders[q][0].length).setValues(dataheaders[q])
+                targetsheet.getRange(2, 1, dataarray.length, dataarray[0].length).setValues(dataarray);
+              
+                var initialsheet = opensheet.getSheetByName('Sheet1').hideSheet();
+            }
+
+
+        }
+    }
+}
+
+
+
+//////////////////////////////////////////////////////
+/////////////// Custom functions /////////////////////
+//////////////////////////////////////////////////////
+
+function param(object) {
+    var parameters = [];
+    for (var property in object) {
+        if (object.hasOwnProperty(property)) {
+            parameters.push(encodeURI(property + '=' + object[property]));
+        }
+    }
+
+    return parameters.join('&');
+}
+
+
+
+function Check_folder_and_file_exist(filename, foldername) {
+
+    var folders = DriveApp.getFoldersByName(foldername);
+
+    //Folder does not exist
+    if (!folders.hasNext()) {
+        Logger.log("No Folder Found");
+        return [0, '', '']
+
+    }
+    //Folder does exist
+    else {
+
+        while (folders.hasNext()) {
+            var folder = folders.next();
+            if (foldername == folder.getName()) {
+                var folderId = folder.getId();
+            }
+        }
+
+        Logger.log("Folder Found - " + folderId);
+        var file = folder.getFilesByName(filename);
+
+        if (!file.hasNext()) {
+
+            return [1, folderId, ''];
+        } else {
+            var fileId = file.next().getId();
+            Logger.log("File Found - " + fileId);
+            return [2, folderId, fileId];
+        }
+    }
+}
+
+
+
+
+function Move_file_to_folder(fileID, targetFolderID) {
+
+    var file = DriveApp.getFileById(fileID);
+
+    // Remove the file from all parent folders
+    var parents = file.getParents();
+    while (parents.hasNext()) {
+        var parent = parents.next();
+        parent.removeFile(file);
+    }
+    DriveApp.getFolderById(targetFolderID).addFile(file);
+}
+
+
+
+
+function Find_or_create_target_spreadsheet(spreadsheetname, foldername, sheetname) {
+
+    var targetfileId, folder, file, targetfolderId;
+
+    var result = Check_folder_and_file_exist(spreadsheetname, foldername);
+    Logger.log(result);
+
+    if (result[0] == 0) {
+        folder = DriveApp.createFolder(foldername);
+        targetfolderId = folder.getId();
+        file = SpreadsheetApp.create(spreadsheetname);
+        targetfileId = file.getId();
+        Move_file_to_folder(targetfileId, targetfolderId);
+        Logger.log('Folder and file created, ID is - ' + targetfileId);
+
+    } else if (result[0] == 1) {
+        file = SpreadsheetApp.create(spreadsheetname);
+        targetfileId = file.getId();
+        targetfolderId = result[1];
+        Move_file_to_folder(targetfileId, targetfolderId);
+        Logger.log('File created, ID is - ' + targetfileId);
+
+    } else {
+        targetfileId = result[2];
+    }
+    return targetfileId;
+}
