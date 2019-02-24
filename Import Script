@@ -4,7 +4,7 @@ function MyFitnessPalImport() {
     /////// Enter login details, plus define start date, etc. ////////////
     //////////////////////////////////////////////////////////////////////
 
-    var username = 'USERNAME'                     // Enter username used to login, not the full email. For example JoeBloggs, not JoeBloggs@gmail.com 
+    var username = 'USERNAME'                     // Enter username or email used to login 
     var password = 'PASSWORD'                     // Enter password
 
     var startingdate = '2018-03-13'               // Define starting date of data export (YYYY-MM-DD)
