@@ -32,7 +32,7 @@ function MyFitnessPalImport() {
   
     // Define the urls needed to login and query data ///////////////////
 
-    var loginurl = 'https://www.myfitnesspal.com/account/login';
+    var login_url = 'https://www.myfitnesspal.com/account/login';
   
     var options = {
       'method': 'post',
@@ -46,45 +46,48 @@ function MyFitnessPalImport() {
       },
     };
 
-    var queryurl = ['https://www.myfitnesspal.com/reports/results/nutrition/Calories/' + ndays + '.json?report_name=Calories',
-        'http://www.myfitnesspal.com/reports/results/fitness/Calories Burned/' + ndays + '.json?report_name=Calories Burned',
-        'http://www.myfitnesspal.com/reports/results/nutrition/Carbs/' + ndays + '.json?report_name=Carbs',
-        'http://www.myfitnesspal.com/reports/results/nutrition/Fat/' + ndays + '.json?report_name=Fat',
-        'http://www.myfitnesspal.com/reports/results/nutrition/Protein/' + ndays + '.json?report_name=Protein',
-        'http://www.myfitnesspal.com/reports/results/nutrition/Sodium/' + ndays + '.json?report_name=Sodium',
-        'http://www.myfitnesspal.com/reports/results/nutrition/Fiber/' + ndays + '.json?report_name=Fiber',
-        'http://www.myfitnesspal.com/reports/results/nutrition/Sugar/' + ndays + '.json?report_name=Sugar',
-    ];
+    var report_url = ['http://www.myfitnesspal.com/reports/results/progress/1/' + ndays + '.json?report_name=1',
+                    'https://www.myfitnesspal.com/reports/results/nutrition/Calories/' + ndays + '.json?report_name=Calories',
+                    'http://www.myfitnesspal.com/reports/results/fitness/Calories Burned/' + ndays + '.json?report_name=Calories Burned',
+                    'http://www.myfitnesspal.com/reports/results/nutrition/Carbs/' + ndays + '.json?report_name=Carbs',
+                    'http://www.myfitnesspal.com/reports/results/nutrition/Fat/' + ndays + '.json?report_name=Fat',
+                    'http://www.myfitnesspal.com/reports/results/nutrition/Protein/' + ndays + '.json?report_name=Protein',
+                    'http://www.myfitnesspal.com/reports/results/nutrition/Sodium/' + ndays + '.json?report_name=Sodium',
+                    'http://www.myfitnesspal.com/reports/results/nutrition/Fiber/' + ndays + '.json?report_name=Fiber',
+                    'http://www.myfitnesspal.com/reports/results/nutrition/Sugar/' + ndays + '.json?report_name=Sugar',
+                   ];
 
   
     // Define google sheet worksheet name(s) and data headers ///////////
     
-    var sheet = ['Gross Calories',
-        'Exercise Calories',
-        'Carbs',
-        'Fat',
-        'Protein',
-        'Sodium',
-        'Fibre',
-        'Sugar',
-    ];
+    var sheet = ['Weight',
+                 'Gross Calories',
+                 'Exercise Calories',
+                 'Carbs',
+                 'Fat',
+                 'Protein',
+                 'Sodium',
+                 'Fibre',
+                 'Sugar',
+                ];
 
-    var dataheaders = [
-        [['Date', 'Gross Calories']],
-        [['Date', 'Exercise Calories']],
-        [['Date', 'Carbs']],
-        [['Date', 'Fat']],
-        [['Date', 'Protein']],
-        [['Date', 'Sodium']],
-        [['Date', 'Fibre']],
-        [['Date', 'Sugar']]
-    ];
+    var data_headers = [
+                 [['Date', 'Weight']],
+                 [['Date', 'Gross Calories']],
+                 [['Date', 'Exercise Calories']],
+                 [['Date', 'Carbs']],
+                 [['Date', 'Fat']],
+                 [['Date', 'Protein']],
+                 [['Date', 'Sodium']],
+                 [['Date', 'Fibre']],
+                 [['Date', 'Sugar']]
+                 ];
 
-    var querycount = Object.keys(queryurl).length;
+    var query_count = Object.keys(report_url).length;
 
     ///////// Begin login process ///////////////////////////////////////
 
-    var response = UrlFetchApp.fetch(loginurl, options);
+    var response = UrlFetchApp.fetch(login_url, options);
 
     if (response.getResponseCode() == 200) {
         // Incorrect user/pass combo
@@ -104,7 +107,7 @@ function MyFitnessPalImport() {
             var googlesheet = Find_or_create_target_spreadsheet(spreadsheetname,foldername,sheet);   
             var opensheet = SpreadsheetApp.openById(googlesheet);
 
-            for (var q = 0; q < querycount; q++) {
+            for (var q = 0; q < query_count; q++) {
 
                 var targetsheet = opensheet.getSheetByName(sheet[q]);
                 if (!targetsheet) {
@@ -121,29 +124,30 @@ function MyFitnessPalImport() {
                     }
                 }
 
-                var resp = UrlFetchApp.fetch(queryurl[q], options);
-                var json = resp.getContentText();
+                var query_url = UrlFetchApp.fetch(report_url[q], options);
+                var query_response = query_url.getContentText();
                 //  Parse json data
-                var respdata = JSON.parse(json);
-                var actualrespdata = respdata.data
-                var jsonlength = Object.keys(actualrespdata).length;
-                if (jsonlength == 0) {
+                var query_data = JSON.parse(query_response);
+                var query_json = query_data.data
+                var json_length = Object.keys(query_json).length;
+                if (json_length == 0) {
                     Logger.log('No data');
                     return;
                 }
 
+              
                 var dataarray = [];
 
-                for (var i = 0; i < jsonlength; i++) {
-                    var item = [actualrespdata[i].date,
-                        actualrespdata[i].total
+                for (var i = 0; i < json_length; i++) {
+                    var item = [query_json[i].date,
+                        query_json[i].total
                     ];
                     dataarray.push(item);
                 }
 
 
                 targetsheet.clear()
-                targetsheet.getRange(1, 1, 1, dataheaders[q][0].length).setValues(dataheaders[q])
+                targetsheet.getRange(1, 1, 1, data_headers[q][0].length).setValues(data_headers[q])
                 targetsheet.getRange(2, 1, dataarray.length, dataarray[0].length).setValues(dataarray);
               
                 var initialsheet = opensheet.getSheetByName('Sheet1').hideSheet();
